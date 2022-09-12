@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import pygame as pg
 import random
+import time
 
 import game
 from visualizer import Visualizer
@@ -58,6 +59,10 @@ class AController():
                             self.from_point = None
     
     def ai_random_choice(self):
+        for e in pg.event.get():
+            if e.type == pg.QUIT:
+                self.quit = True
+
         possible_moves = self.game.possible_moves(self.game.turn)
 
         if self.game.remove:
@@ -72,6 +77,8 @@ class AController():
                 # MOVE
                 from_point, to_point = random.choice([(tuple(k), random.choice(possible_moves[k])) for k in possible_moves if len(possible_moves[k]) > 0])
                 self.game.try_move(from_point, to_point)
+
+        time.sleep(.5)
 
 class OneVsOne(AController):
     def update(self):
