@@ -76,6 +76,12 @@ class Board():
         self._point_states[to_point].value = self._point_states[from_point].value
         self._point_states[from_point].value = EMPTY
     
+    def pieces(self, player):
+        return [(ps.x, ps.y) for ps in self._point_states.values() if ps.value == player]
+    
+    def empty(self):
+        return [(ps.x, ps.y) for ps in self._point_states.values() if ps.value == EMPTY]
+
     # check if a point is part of a mill
     def is_mill(self, point):
         point_value = self._point_states[point].value
@@ -117,6 +123,32 @@ class Board():
             if (sx != mx and ex != mx) and self._point_states[row[1]].value != EMPTY: return False
 
         return True
+    
+    # get all possible moves for the piece on the specified point
+    def possible_moves(self, point):
+        moves = []
+
+        x,y = point
+        piece = self._point_states[point]
+        row = piece.row
+        for p in row:
+            px,py = p
+            if p == point: continue # must move
+            if self._point_states[p].value != EMPTY: continue # target must be empty
+            mx,my = row[1]
+            if (x != mx and px != mx) and self._point_states[row[1]].value != EMPTY: continue # if moving 2 points => middle one must be empty
+            moves.append(p)
+
+        col = piece.col
+        for p in col:
+            px,py = p
+            if p == point: continue # must move
+            if self._point_states[p].value != EMPTY: continue # target must be empty
+            mx,my = col[1]
+            if (y != my and py != my) and self._point_states[col[1]].value != EMPTY: continue # if moving 2 points => middle one must be empty
+            moves.append(p)
+
+        return moves
 
     # check if all pieces of a player are part of a mill
     def all_mill(self, player):
@@ -159,7 +191,7 @@ class Game():
         # check if mill
         self._remove = self.board.is_mill(point) # set the amount of pieces that can be removed to the amount of mills, the new piece is part of
         if not self._remove: # if no mill then end turn
-            self._turn = opponent(self._turn)
+            self._switch_turns()
 
         return True
     
@@ -188,7 +220,7 @@ class Game():
                 self._phase[opponent(self._turn)] = PHASE_WILD
 
             if self._remove == 0: # if not won and no more pieces to remove, then end turn
-                self._turn = opponent(self._turn)
+                self._switch_turns()
     
         return True
 
@@ -211,9 +243,48 @@ class Game():
         # check if mill
         self._remove = self.board.is_mill(to_point) # set the amount of pieces that can be removed to the amount of mills, the moved piece is part of
         if not self._remove: # if no mill then end turn
-            self._turn = opponent(self._turn)
+            self._switch_turns()
 
         return True
+
+    def _switch_turns(self):
+        self._turn = opponent(self._turn)
+
+        possible_moves = self.possible_moves(self._turn)
+        can_move = True
+        if isinstance(possible_moves, list):
+            can_move = len(possible_moves) > 0
+        elif isinstance(possible_moves, dict):
+            can_move = any([len(possible_moves[p]) > 0 for p in possible_moves])
+        else:
+            can_move = False
+        
+        # if the player cannot move then skip his turn
+        if not can_move:
+            self._switch_turns()
+
+    def possible_moves(self, player):
+        # if self._turn != player: return [] # cannot move if its not your turn
+
+        if self._remove > 0:
+            # return all the opponents pieces
+            return self.board.pieces(opponent(player)) 
+        
+        phase = self.phase(player)
+        if phase == PHASE_PLACING:
+            # return all empty points
+            return self.board.empty()
+        
+        if phase == PHASE_NORMAL:
+            # return all possible moves for all pieces
+            return { p: self.board.possible_moves(p) for p in self.board.pieces(player) }
+
+        if phase == PHASE_WILD:
+            # return all 3 pieces x all empty points
+            empty = self.board.empty()
+            return { p: empty for p in self.board.pieces(player) } 
+
+        return None
 
     # get the player whos turn it is
     @property
